@@ -1,0 +1,53 @@
+name: Build and deploy Cynthia Movies
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish application
+        run: dotnet publish ./CynthiaMovies.csproj -c Release -r win-x64 --self-contained true -o ./publish
+
+      - name: Include SQLite database
+        run: Copy-Item ./MvcMovie.db ./publish/MvcMovie.db -Force
+
+      - name: Upload deployment files
+        uses: actions/upload-artifact@v4
+        with:
+          name: cynthia-movies
+          path: ./publish
+
+  deploy:
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+      - name: Download deployment files
+        uses: actions/download-artifact@v4
+        with:
+          name: cynthia-movies
+          path: ./publish
+
+      - name: Deploy to Azure
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'cynthia-movies-2026'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./publish
